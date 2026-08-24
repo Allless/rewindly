@@ -7,6 +7,7 @@
 
 import { formatRelativeDays } from "./shared/formatDate";
 import { PeerAvatar, PeerName } from "../media/avatars";
+import { isNoiseChat } from "./shared/chatFilters";
 import { defineStat } from "./registry";
 import { beatStyle, useInViewOnce, useReveal } from "./shared/reveal";
 import type { Dataset, MessageDirection } from "../model/types";
@@ -46,6 +47,11 @@ function compute(dataset: Dataset): GhostedChatsResult {
 
   const chats: GhostedChat[] = [];
   for (const [chatId, last] of lastByChat) {
+    // Human DMs only: service streams/bots can't ghost anyone, and groups
+    // are one-sided by ingest design (only your own messages are fetched),
+    // so "who spoke last" would always be you.
+    if (dataset.chats[chatId]?.type !== "private") continue;
+    if (isNoiseChat(dataset, chatId)) continue;
     chats.push({
       chatId,
       title: dataset.chats[chatId]?.title ?? chatId,
