@@ -1,27 +1,28 @@
-<!-- Source for public/social-card.png (1200x630 link-preview card).
-     ImageMagick can't resolve the SVG's fonts, so regeneration is two-step:
-     rasterize this file WITHOUT the <text> elements, then annotate:
+<!-- Source for public/social-card.png (1200x630 link-preview card), drawn in
+     the telegram night theme — the app's default look. ImageMagick can't
+     resolve the SVG's fonts, so regeneration is two-step: rasterize this
+     file WITHOUT the <text> elements, then annotate:
        magick shapes.svg \
-         -font "/System/Library/Fonts/Supplemental/Georgia Bold.ttf" \
-         -pointsize 104 -fill '#23201b' -gravity North -annotate +0+330 'Rewindly' \
-         -font "/System/Library/Fonts/Supplemental/Georgia.ttf" \
-         -pointsize 37 -fill '#77705f' -annotate +0+468 \
+         -font "/System/Library/Fonts/Supplemental/Arial Bold.ttf" \
+         -pointsize 96 -fill '#f5f5f5' -gravity North -annotate +0+330 'Rewindly' \
+         -font "/System/Library/Fonts/Supplemental/Arial.ttf" \
+         -pointsize 36 -fill '#8b9aac' -annotate +0+462 \
          'Your Telegram, rewound — 100% in your browser' \
          -depth 8 src/public/social-card.png -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
-  <rect width="1200" height="630" fill="#f4eee1"/>
-  <rect y="614" width="1200" height="16" fill="#b84725"/>
+  <rect width="1200" height="630" fill="#0e1621"/>
+  <rect y="614" width="1200" height="16" fill="#479bee"/>
 
-  <circle cx="600" cy="205" r="95" fill="#b84725"/>
-  <g transform="translate(524.8,116.6) scale(0.784)">
+  <circle cx="600" cy="190" r="92" fill="#479bee"/>
+  <g transform="translate(508,98) scale(0.7667)">
     <g transform="translate(31.20,83.42) scale(0.3026)">
-      <g transform="translate(586.60,8.00) scale(-1,1)" fill="#fff8ec">
+      <g transform="translate(586.60,8.00) scale(-1,1)" fill="#ffffff">
         <path d="M 15.87 -7.22 L 311.73 104.64 A 8.4 8.4 0 0 1 312.42 120.06 L 79.98 232.62 A 12 12 0 0 1 63.22 225.16 L 0.10 7.34 A 12 12 0 0 1 15.87 -7.22 Z"/>
         <path d="M 15.87 -7.22 L 311.73 104.64 A 8.4 8.4 0 0 1 312.42 120.06 L 79.98 232.62 A 12 12 0 0 1 63.22 225.16 L 0.10 7.34 A 12 12 0 0 1 15.87 -7.22 Z" transform="translate(269.44,0)"/>
       </g>
     </g>
   </g>
 
-  <text x="600" y="432" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="bold" font-size="104" fill="#23201b">Rewindly</text>
-  <text x="600" y="505" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="37" fill="#77705f">Your Telegram, rewound — 100% in your browser</text>
+  <text x="600" y="425" text-anchor="middle" font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif" font-weight="bold" font-size="96" fill="#f5f5f5">Rewindly</text>
+  <text x="600" y="498" text-anchor="middle" font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif" font-size="36" fill="#8b9aac">Your Telegram, rewound — 100% in your browser</text>
 </svg>
