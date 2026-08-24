@@ -16,7 +16,7 @@ import type {
   Message,
   PeerId,
 } from "../../model/types";
-import { withFloodRetry } from "./backoff";
+import { floodWaitSeconds, withFloodRetry } from "./backoff";
 import {
   mediaKindOf,
   normalizeMessage,
@@ -32,6 +32,8 @@ export interface IngestOptions {
     chatsDone: number;
     chatsTotal: number;
     messages: number;
+    /** Present while Telegram rate-limits us — seconds it mandated. */
+    waitSeconds?: number;
   }) => void;
   maxMessagesPerChat?: number;
   /** Only ingest messages newer than this many days ago. Default 365. */
@@ -60,7 +62,7 @@ interface ClientSurface {
   getDialogs(params?: { limit?: number }): Promise<Iterable<DialogLike>>;
   iterMessages(
     entity: unknown,
-    params?: { limit?: number; fromUser?: string },
+    params?: { limit?: number; fromUser?: string; offsetId?: number },
   ): AsyncIterable<unknown>;
 }
 
@@ -270,13 +272,42 @@ export async function ingest(
   client: TelegramClient,
   opts: IngestOptions = {},
 ): Promise<IngestResult> {
+  // gramjs silently sleeps through FLOOD_WAITs below its threshold (60s by
+  // default), which reads as a hang. Surface every wait instead — the
+  // loading screen owns the countdown — and restore the client afterwards.
+  const tunable = client as unknown as { floodSleepThreshold?: number };
+  const savedThreshold = tunable.floodSleepThreshold;
+  tunable.floodSleepThreshold = 0;
+  try {
+    return await runIngest(client, opts);
+  } finally {
+    tunable.floodSleepThreshold = savedThreshold;
+  }
+}
+
+const sleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+async function runIngest(
+  client: TelegramClient,
+  opts: IngestOptions,
+): Promise<IngestResult> {
   const api = client as unknown as ClientSurface;
+  const onWait = (waitSeconds: number, chatsDone = 0, chatsTotal = 0) =>
+    opts.onProgress?.({
+      chatsDone,
+      chatsTotal,
+      messages: 0,
+      waitSeconds,
+    });
   const maxPerChat = opts.maxMessagesPerChat ?? DEFAULT_MAX_PER_CHAT;
   const sinceDays = opts.sinceDaysAgo ?? DEFAULT_SINCE_DAYS;
   const cutoffSeconds =
     Math.floor(Date.now() / 1000) - sinceDays * SECONDS_PER_DAY;
 
-  const self = await resolveSelf(api);
+  const self = await withFloodRetry(() => resolveSelf(api), {
+    onWait: (s) => onWait(s),
+  });
   const selfContact: Contact = self?.contact ?? {
     id: "user:self",
     displayName: "Me",
@@ -295,7 +326,11 @@ export async function ingest(
   // Drop dialogs with no activity in the window up front — this avoids a
   // GetHistory (and its FLOOD_WAIT) for every long-dormant chat, and makes
   // the progress total match the real workload.
-  const dialogs = Array.from(await api.getDialogs()).filter((dialog) => {
+  const dialogs = Array.from(
+    await withFloodRetry(() => api.getDialogs(), {
+      onWait: (s) => onWait(s),
+    }),
+  ).filter((dialog) => {
     const lastActivity =
       readNumber(dialog.date) ?? readNumber(asRecord(dialog.message)?.date);
     return lastActivity === undefined || lastActivity >= cutoffSeconds;
@@ -345,62 +380,75 @@ export async function ingest(
     };
     if (kind !== "user") messageParams.fromUser = "me";
 
+    // Paging is resumable: a FLOOD_WAIT thrown mid-chat reports the mandated
+    // pause, sleeps it out, and re-opens the iterator just below the last
+    // message seen instead of failing the whole ingest.
     let perChat = 0;
-    const iterator = await withFloodRetry(
-      async () => api.iterMessages(dialog.entity, messageParams),
-      {
-        onWait: () =>
-          opts.onProgress?.({
-            chatsDone: index,
-            chatsTotal,
-            messages: messages.length,
-          }),
-      },
-    );
-
-    for await (const rawMsg of iterator) {
-      if (opts.signal?.aborted) {
-        partial = true;
-        break;
-      }
-      const raw = toRawMessage(rawMsg, chatId, selfId);
-      if (raw) {
-        // Messages arrive newest-first; once we cross the window, the rest of
-        // this chat is older too, so stop paging it. This is the main guard
-        // against deep history and the FLOOD_WAIT it causes.
-        if (raw.date < cutoffSeconds) break;
-        const normalized = normalizeMessage(raw);
-        messages.push(normalized);
-        // Keep one downloadable reference per unique sticker/gif for display.
-        if (
-          normalized.mediaId &&
-          (normalized.mediaType === "sticker" ||
-            normalized.mediaType === "gif") &&
-          !mediaRefs.has(normalized.mediaId)
-        ) {
-          mediaRefs.set(normalized.mediaId, rawMsg);
+    let offsetId: number | undefined;
+    let chatDone = false;
+    while (!chatDone) {
+      try {
+        for await (const rawMsg of api.iterMessages(dialog.entity, {
+          ...messageParams,
+          offsetId,
+        })) {
+          if (opts.signal?.aborted) {
+            partial = true;
+            break;
+          }
+          const msgId = readNumber(asRecord(rawMsg)?.id);
+          if (msgId !== undefined) offsetId = msgId;
+          const raw = toRawMessage(rawMsg, chatId, selfId);
+          if (raw) {
+            // Messages arrive newest-first; once we cross the window, the rest of
+            // this chat is older too, so stop paging it. This is the main guard
+            // against deep history and the FLOOD_WAIT it causes.
+            if (raw.date < cutoffSeconds) break;
+            const normalized = normalizeMessage(raw);
+            messages.push(normalized);
+            // Keep one downloadable reference per unique sticker/gif for display.
+            if (
+              normalized.mediaId &&
+              (normalized.mediaType === "sticker" ||
+                normalized.mediaType === "gif") &&
+              !mediaRefs.has(normalized.mediaId)
+            ) {
+              mediaRefs.set(normalized.mediaId, rawMsg);
+            }
+            // Keep refs for reacted media messages — "Greatest hits" candidates.
+            if (
+              normalized.reactionCount > 0 &&
+              normalized.mediaType !== "text" &&
+              normalized.direction === "sent"
+            ) {
+              hitRefs.set(normalized.id, rawMsg);
+            }
+            // Attribute unknown non-self senders in groups as contacts lazily.
+            if (!contacts[raw.senderId]) {
+              contacts[raw.senderId] = {
+                id: raw.senderId,
+                displayName: raw.senderId,
+                isSelf: raw.senderId === selfId,
+              };
+            }
+          }
+          perChat++;
+          if (perChat >= maxPerChat) {
+            partial = true;
+            break;
+          }
         }
-        // Keep refs for reacted media messages — "Greatest hits" candidates.
-        if (
-          normalized.reactionCount > 0 &&
-          normalized.mediaType !== "text" &&
-          normalized.direction === "sent"
-        ) {
-          hitRefs.set(normalized.id, rawMsg);
-        }
-        // Attribute unknown non-self senders in groups as contacts lazily.
-        if (!contacts[raw.senderId]) {
-          contacts[raw.senderId] = {
-            id: raw.senderId,
-            displayName: raw.senderId,
-            isSelf: raw.senderId === selfId,
-          };
-        }
-      }
-      perChat++;
-      if (perChat >= maxPerChat) {
-        partial = true;
-        break;
+        chatDone = true;
+      } catch (err) {
+        const waitSeconds = floodWaitSeconds(err);
+        if (waitSeconds === null) throw err;
+        opts.onProgress?.({
+          chatsDone: index,
+          chatsTotal,
+          messages: messages.length,
+          waitSeconds,
+        });
+        await sleep(waitSeconds * 1000);
       }
     }
 

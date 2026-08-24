@@ -20,7 +20,7 @@ const realSleep = (ms: number): Promise<void> =>
  * error is not a flood-wait. Recognises both a numeric `.seconds` property and a
  * `FLOOD_WAIT_<n>` message.
  */
-function floodWaitSeconds(err: unknown): number | null {
+export function floodWaitSeconds(err: unknown): number | null {
   if (typeof err === "object" && err !== null && "seconds" in err) {
     const seconds = (err as { seconds: unknown }).seconds;
     if (typeof seconds === "number" && Number.isFinite(seconds)) {

@@ -20,6 +20,9 @@ export interface IngestProgress {
   chatsDone: number;
   chatsTotal: number;
   messages: number;
+  /** Set while the platform rate-limits us: seconds it told us to wait.
+   * Cleared (undefined) on the next flowing progress event. */
+  waitSeconds?: number;
 }
 
 /** A connected/loaded source of one account's data. */
@@ -47,6 +50,14 @@ export interface Platform {
   ConnectScreen: FunctionComponent<{
     onConnected: (session: PlatformSession) => void;
   }>;
+  /** Silently resume a previously stored session, or null when there is
+   * none — lets the shell skip straight past the login screen without
+   * flashing it. Omitted when the platform has nothing to resume. */
+  resume?: () => Promise<PlatformSession | null>;
+  /** Synchronous hint that resume() has something to try, so first-time
+   * visitors start on the login screen with no loading flash. Treated as
+   * true when omitted. */
+  canResume?: () => boolean;
   /** Whether this platform's data can populate the given slide. */
   supports(slideId: string): boolean;
 }

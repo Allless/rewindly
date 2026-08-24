@@ -1,7 +1,8 @@
-import { useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 
 import { Dashboard } from "./dashboard/Dashboard";
 import { SharedReport } from "./dashboard/SharedReport";
+import { ThemeToggle } from "./dashboard/ThemeToggle";
 import { telegramPlatform } from "./platforms/telegram";
 import { whatsappPlatform } from "./platforms/whatsapp";
 import { decryptText } from "./share/crypto";
@@ -17,7 +18,10 @@ import type { ShareRef } from "./share/link";
 import type { SharedSummary } from "./share/summary";
 import type { Dataset } from "./model/types";
 
-type Status = "connect" | "loading" | "ready" | "error";
+type Status = "resuming" | "connect" | "loading" | "ready" | "error";
+
+/** What the loading screen is actually doing right now. */
+type LoadStage = "cache" | "ingest";
 
 // Telegram is the main flow; WhatsApp is offered as a beta behind a query
 // param until it earns its own page.
@@ -25,6 +29,9 @@ const platform =
   new URLSearchParams(location.search).get("platform") === "whatsapp"
     ? whatsappPlatform
     : telegramPlatform;
+
+const resumable = () =>
+  Boolean(platform.resume && (platform.canResume?.() ?? true));
 
 /**
  * Root component and data-flow controller. On connect it reads the account's
@@ -60,10 +67,16 @@ function FixtureApp() {
 }
 
 function ConnectedApp() {
-  const [status, setStatus] = useState<Status>("connect");
+  // A stored session resumes silently; starting in "resuming" keeps the
+  // login form from flashing for a returning user (and the loading screen
+  // from flashing for a first-time one).
+  const [status, setStatus] = useState<Status>(() =>
+    resumable() && !parseShareHash(location.hash) ? "resuming" : "connect",
+  );
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [session, setSession] = useState<PlatformSession | null>(null);
   const [progress, setProgress] = useState<IngestProgress | null>(null);
+  const [loadStage, setLoadStage] = useState<LoadStage>("cache");
   const [error, setError] = useState<string | null>(null);
 
   // Opened via a share link? Render the shared summary instead of the login
@@ -104,12 +117,17 @@ function ConnectedApp() {
     setShareError(null);
   };
 
-  const handleConnected = async (connected: PlatformSession) => {
+  const handleConnected = useCallback(async (connected: PlatformSession) => {
     setStatus("loading");
+    setLoadStage("cache");
     setError(null);
     setSession(connected);
     try {
-      setDataset(await loadOrIngest(connected, setProgress));
+      setDataset(
+        await loadOrIngest(connected, setProgress, () =>
+          setLoadStage("ingest"),
+        ),
+      );
       setStatus("ready");
     } catch (err) {
       setError(
@@ -119,13 +137,30 @@ function ConnectedApp() {
       );
       setStatus("error");
     }
-  };
+  }, []);
+
+  // The silent resume itself; one-shot. Any failure just lands on the login
+  // screen — a dead network must not look like a broken app.
+  const resumeTried = useRef(false);
+  useEffect(() => {
+    if (resumeTried.current) return;
+    resumeTried.current = true;
+    if (!platform.resume || !resumable() || shareRef) return;
+    platform.resume().then(
+      (restored) => {
+        if (restored) void handleConnected(restored);
+        else setStatus("connect");
+      },
+      () => setStatus("connect"),
+    );
+  }, [shareRef, handleConnected]);
 
   // Re-ingest, bypassing the cache. The old entry survives until the new
   // ingest succeeds, so an interrupted refresh keeps the existing results.
   const handleRefresh = async () => {
     if (!session?.canRefresh) return;
     setStatus("loading");
+    setLoadStage("ingest");
     setError(null);
     setProgress(null);
     try {
@@ -161,26 +196,30 @@ function ConnectedApp() {
   return (
     <div class="app">
       <header class="app-header">
-        <h1 class="wordmark">
-          <a
-            class="wordmark-link"
-            href={location.pathname}
-            onClick={(event) => {
-              // Shared view exits in place; otherwise let the link navigate
-              // (e.g. from ?platform=whatsapp back home).
-              if (shareRef) {
-                event.preventDefault();
-                exitShared();
-              }
-            }}
-          >
-            <Logo class="wordmark-logo" />
-            Rewindly
-          </a>
-        </h1>
-        <p class="tagline">
-          Your {platform.name}, rewound — 100% in your browser
-        </p>
+        <div>
+          <h1 class="wordmark">
+            <a
+              class="wordmark-link"
+              href={location.pathname}
+              onClick={(event) => {
+                // Shared view exits in place; otherwise let the link navigate
+                // (e.g. from ?platform=whatsapp back home).
+                if (shareRef) {
+                  event.preventDefault();
+                  exitShared();
+                }
+              }}
+            >
+              <Logo class="wordmark-logo" />
+              Rewindly
+            </a>
+          </h1>
+          <p class="tagline">
+            Your {platform.name}, rewound — 100% in your browser
+          </p>
+        </div>
+        {/* The dashboard carries its own toggle in its action row. */}
+        {!(status === "ready" && !shareRef) && <ThemeToggle />}
       </header>
 
       <main>
@@ -202,7 +241,7 @@ function ConnectedApp() {
         )}
 
         {!shareRef && status === "connect" && (
-          <>
+          <div class="view-enter">
             <platform.ConnectScreen onConnected={handleConnected} />
             {platform.id === "telegram" && (
               <p class="muted hint beta-link">
@@ -210,27 +249,19 @@ function ConnectedApp() {
                 <a href="?platform=whatsapp">Try the WhatsApp rewind (beta)</a>
               </p>
             )}
-          </>
-        )}
-
-        {!shareRef && status === "loading" && (
-          <div class="muted">
-            <p>
-              Reading your {platform.name} history on this device…
-              {platform.id === "telegram" &&
-                " Telegram rate-limits large accounts, so this can pause and take a few minutes."}
-            </p>
-            {progress && (
-              <p>
-                {progress.chatsDone}/{progress.chatsTotal} chats ·{" "}
-                {progress.messages.toLocaleString()} messages
-              </p>
-            )}
           </div>
         )}
 
+        {!shareRef && status === "resuming" && (
+          <LoadingScreen stage="restore" progress={null} />
+        )}
+
+        {!shareRef && status === "loading" && (
+          <LoadingScreen stage={loadStage} progress={progress} />
+        )}
+
         {!shareRef && status === "error" && (
-          <div class="error-panel">
+          <div class="error-panel view-enter">
             <p>{error}</p>
             <button
               type="button"
@@ -243,15 +274,17 @@ function ConnectedApp() {
         )}
 
         {!shareRef && status === "ready" && dataset && (
-          <Dashboard
-            dataset={dataset}
-            media={media}
-            onRefresh={
-              session?.canRefresh ? () => void handleRefresh() : undefined
-            }
-            onDisconnect={handleDisconnect}
-            supportsSlide={platform.supports}
-          />
+          <div class="view-enter">
+            <Dashboard
+              dataset={dataset}
+              media={media}
+              onRefresh={
+                session?.canRefresh ? () => void handleRefresh() : undefined
+              }
+              onDisconnect={handleDisconnect}
+              supportsSlide={platform.supports}
+            />
+          </div>
         )}
       </main>
 
@@ -281,6 +314,94 @@ function ConnectedApp() {
   );
 }
 
+/**
+ * The one screen between login and dashboard. Stages: reconnecting a stored
+ * session, checking the local cache, then the real ingest with a per-chat
+ * progress bar — and an explicit countdown whenever the platform rate-limits
+ * us, so a long pause reads as "waiting on Telegram", not "hung".
+ */
+function LoadingScreen({
+  stage,
+  progress,
+}: {
+  stage: "restore" | LoadStage;
+  progress: IngestProgress | null;
+}) {
+  const wait = progress?.waitSeconds;
+  const [waitLeft, setWaitLeft] = useState<number | null>(null);
+
+  // Local countdown between progress events; the next flowing event (no
+  // waitSeconds) clears it.
+  useEffect(() => {
+    if (wait === undefined) {
+      setWaitLeft(null);
+      return;
+    }
+    setWaitLeft(Math.ceil(wait));
+    const timer = setInterval(
+      () => setWaitLeft((s) => (s !== null && s > 0 ? s - 1 : s)),
+      1000,
+    );
+    return () => clearInterval(timer);
+  }, [wait, progress]);
+
+  const fraction =
+    progress && progress.chatsTotal > 0
+      ? Math.min(1, progress.chatsDone / progress.chatsTotal)
+      : null;
+
+  return (
+    <div class="loading-screen view-enter" role="status">
+      <div class="load-spinner" aria-hidden="true" />
+
+      {stage === "restore" && (
+        <p class="muted">Reconnecting your {platform.name} session…</p>
+      )}
+      {stage === "cache" && (
+        <p class="muted">Checking for data already on this device…</p>
+      )}
+
+      {stage === "ingest" && (
+        <>
+          <p class="muted">
+            {progress
+              ? `Reading your ${platform.name} history on this device…`
+              : "Listing your chats…"}
+          </p>
+          <div class="load-bar">
+            <div
+              class={`load-bar-fill${fraction === null ? " load-bar-indeterminate" : ""}`}
+              style={
+                fraction !== null
+                  ? { transform: `scaleX(${fraction})` }
+                  : undefined
+              }
+            />
+          </div>
+          {progress && (
+            <p class="muted load-count">
+              {progress.chatsDone}/{progress.chatsTotal} chats ·{" "}
+              {progress.messages.toLocaleString()} messages
+            </p>
+          )}
+          {waitLeft !== null && (
+            <p class="load-wait">
+              {platform.name} asked us to slow down — resuming{" "}
+              {waitLeft > 0 ? `in ${waitLeft}s` : "any moment now"}…
+            </p>
+          )}
+          {platform.id === "telegram" && waitLeft === null && (
+            <p class="muted hint">
+              Telegram rate-limits large accounts, so this can pause and take a
+              few minutes. Nothing leaves your device.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Resolve a share link to its summary: fetch+decrypt, or inflate inline data. */
 async function loadSharedSummary(ref: ShareRef): Promise<SharedSummary> {
   const json =
@@ -304,6 +425,7 @@ async function loadSharedSummary(ref: ShareRef): Promise<SharedSummary> {
 async function loadOrIngest(
   session: PlatformSession,
   onProgress: (p: IngestProgress) => void,
+  onIngestStart: () => void,
 ): Promise<Dataset> {
   if (session.usesCache) {
     const cached = await loadDataset(await session.selfId());
@@ -312,6 +434,7 @@ async function loadOrIngest(
       return cached;
     }
   }
+  onIngestStart();
   return ingestFresh(session, onProgress);
 }
 

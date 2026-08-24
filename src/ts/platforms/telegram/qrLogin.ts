@@ -124,6 +124,24 @@ export async function startPhoneLogin(
   return client;
 }
 
+/**
+ * Silently resume the saved session, or `null` when there is none or it was
+ * revoked. Never shows UI; connection errors propagate to the caller (a dead
+ * network shouldn't wipe a valid session).
+ */
+export async function resumeSavedSession(): Promise<TelegramClient | null> {
+  if (!loadSavedSession()) return null;
+  const client = await connectClient();
+  if (await client.checkAuthorization()) {
+    persistSession(client.session.save());
+    return client;
+  }
+  // Revoked from another device — the stored string is dead weight.
+  clearSession();
+  await client.disconnect().catch(() => undefined);
+  return null;
+}
+
 /** Read the saved session string, or `null` if none is stored. */
 export function loadSavedSession(): string | null {
   return localStorage.getItem(SESSION_STORAGE_KEY);

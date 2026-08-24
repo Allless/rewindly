@@ -3,7 +3,7 @@
  * QR/phone login. The only module tree that touches gramjs.
  */
 import { QrConnect } from "./QrConnect";
-import { clearSession } from "./qrLogin";
+import { clearSession, loadSavedSession, resumeSavedSession } from "./qrLogin";
 import {
   fetchPeerRefs,
   ingest,
@@ -76,5 +76,10 @@ export const telegramPlatform: Platform = {
   id: "telegram",
   name: "Telegram",
   ConnectScreen,
+  async resume() {
+    const client = await resumeSavedSession();
+    return client ? createSession(client) : null;
+  },
+  canResume: () => loadSavedSession() !== null,
   supports: () => true,
 };
