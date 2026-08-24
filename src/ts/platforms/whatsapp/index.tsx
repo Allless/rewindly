@@ -21,12 +21,9 @@ function createSession(dataset: Dataset): PlatformSession {
 }
 
 /** Slides that need data text exports don't carry (reactions, media bytes). */
-const UNSUPPORTED = new Set([
-  "reactions",
-  "greatest-hits",
-  "top-stickers",
-  "top-gifs",
-]);
+// The emoji-culture slide stays: its reaction half hides itself when the
+// dataset has no reactions.
+const UNSUPPORTED = new Set(["greatest-hits", "media-rotation"]);
 
 function ConnectScreen({
   onConnected,

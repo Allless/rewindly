@@ -8,6 +8,7 @@
 import type { Chat, Dataset } from "../model/types";
 import { PeerAvatar, PeerName } from "../media/avatars";
 import { defineStat } from "./registry";
+import { beatStyle, useInViewOnce, useReveal } from "./shared/reveal";
 
 export interface TopChat {
   chatId: string;
@@ -69,6 +70,9 @@ function computeTop(
   return { chats };
 }
 
+// Rows stagger faster than narrative beats, matching the trophy shelf.
+const RANK_STAGGER_MS = 80;
+
 function RankList({
   chats,
   detail,
@@ -78,14 +82,21 @@ function RankList({
   detail: (chat: TopChat) => string;
   emptyLabel: string;
 }) {
+  const { live, settled } = useReveal();
+  const animate = live && !settled;
+  const { ref, seen } = useInViewOnce<HTMLOListElement>(animate);
   if (chats.length === 0) {
     return <p class="muted">{emptyLabel}</p>;
   }
 
   return (
-    <ol class="rank-list">
+    <ol class="rank-list" ref={ref}>
       {chats.map((chat, index) => (
-        <li class="rank-row" key={chat.chatId}>
+        <li
+          class={`rank-row beat${seen ? " beat-in" : ""}${animate ? "" : " beat-settled"}`}
+          style={beatStyle(index, RANK_STAGGER_MS)}
+          key={chat.chatId}
+        >
           <span class="rank-index">{index + 1}</span>
           <PeerAvatar
             peerId={chat.chatId}

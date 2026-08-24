@@ -4,6 +4,7 @@ import type { FunctionComponent } from "preact";
 
 import type { Dataset } from "../model/types";
 import { defineStat } from "./registry";
+import { Beat } from "./shared/reveal";
 import { hourOfWeek } from "./shared/time";
 
 const HOURS_PER_DAY = 24;
@@ -73,43 +74,49 @@ const Card: FunctionComponent<{ result: ActivityHeatmapResult }> = ({
 
   return (
     <div class="stat-heatmap">
-      <div class="stat-heatmap__grid" onMouseLeave={() => setHovered(null)}>
-        <div class="stat-heatmap__row" aria-hidden="true">
-          <span class="stat-heatmap__label" />
-          {Array.from({ length: HOURS_PER_DAY }, (_, hour) => (
-            <span class="stat-heatmap__hour" key={hour}>
-              {/* Every 3rd hour — 24 labels would collide at this cell width. */}
-              {hour % 3 === 0 ? `${hour}:00` : ""}
-            </span>
+      <Beat step={0}>
+        <div class="stat-heatmap__grid" onMouseLeave={() => setHovered(null)}>
+          <div class="stat-heatmap__row" aria-hidden="true">
+            <span class="stat-heatmap__label" />
+            {Array.from({ length: HOURS_PER_DAY }, (_, hour) => (
+              <span class="stat-heatmap__hour" key={hour}>
+                {/* Every 3rd hour — 24 labels would collide at this cell width. */}
+                {hour % 3 === 0 ? `${hour}:00` : ""}
+              </span>
+            ))}
+          </div>
+          {Array.from({ length: DAYS_PER_WEEK }, (_, weekday) => (
+            <div class="stat-heatmap__row" key={weekday}>
+              <span class="stat-heatmap__label">
+                {WEEKDAY_LABELS[weekday]}
+              </span>
+              {Array.from({ length: HOURS_PER_DAY }, (_, hour) => {
+                const count = result.slots[weekday * HOURS_PER_DAY + hour];
+                const intensity = max > 0 ? count / max : 0;
+                return (
+                  <span
+                    class="stat-heatmap__cell"
+                    key={hour}
+                    onMouseEnter={() => setHovered({ weekday, hour, count })}
+                    style={{
+                      backgroundColor: `color-mix(in srgb, var(--accent) ${Math.round(intensity * 100)}%, transparent)`,
+                    }}
+                  />
+                );
+              })}
+            </div>
           ))}
         </div>
-        {Array.from({ length: DAYS_PER_WEEK }, (_, weekday) => (
-          <div class="stat-heatmap__row" key={weekday}>
-            <span class="stat-heatmap__label">{WEEKDAY_LABELS[weekday]}</span>
-            {Array.from({ length: HOURS_PER_DAY }, (_, hour) => {
-              const count = result.slots[weekday * HOURS_PER_DAY + hour];
-              const intensity = max > 0 ? count / max : 0;
-              return (
-                <span
-                  class="stat-heatmap__cell"
-                  key={hour}
-                  onMouseEnter={() => setHovered({ weekday, hour, count })}
-                  style={{
-                    backgroundColor: `color-mix(in srgb, var(--accent) ${Math.round(intensity * 100)}%, transparent)`,
-                  }}
-                />
-              );
-            })}
-          </div>
-        ))}
-      </div>
-      <p class="stat-heatmap__summary">
-        {hovered
-          ? `${WEEKDAY_LABELS[hovered.weekday]} ${hovered.hour}:00–${(hovered.hour + 1) % 24}:00 · ${hovered.count} ${hovered.count === 1 ? "message" : "messages"}`
-          : max > 0
-            ? `Busiest: ${WEEKDAY_LABELS[result.busiestSlot.weekday]} around ${result.busiestSlot.hour}:00`
-            : "No activity yet"}
-      </p>
+      </Beat>
+      <Beat step={1}>
+        <p class="stat-heatmap__summary">
+          {hovered
+            ? `${WEEKDAY_LABELS[hovered.weekday]} ${hovered.hour}:00–${(hovered.hour + 1) % 24}:00 · ${hovered.count} ${hovered.count === 1 ? "message" : "messages"}`
+            : max > 0
+              ? `Busiest: ${WEEKDAY_LABELS[result.busiestSlot.weekday]} around ${result.busiestSlot.hour}:00`
+              : "No activity yet"}
+        </p>
+      </Beat>
     </div>
   );
 };

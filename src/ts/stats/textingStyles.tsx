@@ -3,6 +3,7 @@ import type { FunctionComponent } from "preact";
 import { REPO_URL } from "../links";
 import { defineStat } from "./registry";
 import { PeerRows } from "./shared/PeerRows";
+import { Beat } from "./shared/reveal";
 import {
   computeTextingStyles,
   type TextingStylesResult,
@@ -30,36 +31,44 @@ const Card: FunctionComponent<{ result: TextingStylesResult }> = ({
   );
   return (
     <div class="response-times">
-      <div class="response-medians">
-        {tile("you", result.you)}
-        {tile("them", result.them)}
-      </div>
-      <PeerRows
-        heading="Death by a thousand texts"
-        rows={result.splitters}
-        detail={(chat) =>
-          `${chat.messagesPerTurn.toFixed(1)} messages per burst · ` +
-          `${Math.round(chat.charsPerMessage)} chars each`
-        }
-      />
-      <PeerRows
-        heading="Wall of text award"
-        rows={result.essayists}
-        detail={(chat) =>
-          `${Math.round(chat.charsPerMessage)} characters per message on average`
-        }
-      />
-      <p class="muted hint">
-        A burst is a run of consecutive messages within one conversation —{" "}
-        <a
-          href={`${REPO_URL}/blob/main/METHODOLOGY.md`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          methodology
-        </a>
-        .
-      </p>
+      <Beat step={0}>
+        <div class="response-medians">
+          {tile("you", result.you)}
+          {tile("them", result.them)}
+        </div>
+      </Beat>
+      <Beat step={1}>
+        <PeerRows
+          heading="Death by a thousand texts"
+          rows={result.splitters}
+          detail={(chat) =>
+            `${chat.messagesPerTurn.toFixed(1)} messages per burst · ` +
+            `${Math.round(chat.charsPerMessage)} chars each`
+          }
+        />
+      </Beat>
+      <Beat step={2}>
+        <PeerRows
+          heading="Wall of text award"
+          rows={result.essayists}
+          detail={(chat) =>
+            `${Math.round(chat.charsPerMessage)} characters per message on average`
+          }
+        />
+      </Beat>
+      <Beat step={3}>
+        <p class="muted hint">
+          A burst is a run of consecutive messages within one conversation —{" "}
+          <a
+            href={`${REPO_URL}/blob/main/METHODOLOGY.md`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            methodology
+          </a>
+          .
+        </p>
+      </Beat>
     </div>
   );
 };

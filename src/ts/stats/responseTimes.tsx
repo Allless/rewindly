@@ -4,6 +4,7 @@ import { REPO_URL } from "../links";
 import { defineStat } from "./registry";
 import { humanizeSeconds } from "./shared/formatDuration";
 import { PeerRows } from "./shared/PeerRows";
+import { Beat, Hero } from "./shared/reveal";
 import {
   computeResponseTimes,
   type ResponseTimesResult,
@@ -20,44 +21,51 @@ const Card: FunctionComponent<{ result: ResponseTimesResult }> = ({
 }) => {
   return (
     <div class="response-times">
-      <div class="response-medians">
-        <div class="response-median">
-          <span class="value">
-            {humanizeSeconds(
-              result.yourMedianSeconds,
-              result.minuteGranularity,
-            )}
-          </span>
-          <span class="label">your median reply</span>
+      <Beat step={0} class="beat-hook">
+        When a conversation is live, you answer in…
+      </Beat>
+      <Hero
+        value={humanizeSeconds(
+          result.yourMedianSeconds,
+          result.minuteGranularity,
+        )}
+        label="your median reply"
+      />
+      <Beat step={2}>
+        <div class="response-medians">
+          <div class="response-median">
+            <span class="value">
+              {humanizeSeconds(
+                result.theirMedianSeconds,
+                result.minuteGranularity,
+              )}
+            </span>
+            <span class="label">their median reply</span>
+          </div>
         </div>
-        <div class="response-median">
-          <span class="value">
-            {humanizeSeconds(
-              result.theirMedianSeconds,
-              result.minuteGranularity,
-            )}
-          </span>
-          <span class="label">their median reply</span>
-        </div>
-      </div>
+      </Beat>
       {result.perChat.length > 1 && (
         <>
-          <PeerRows
-            heading="Fastest to reply to you"
-            rows={result.theyReplyFastest}
-            detail={(chat) =>
-              `replies in ${humanizeSeconds(chat.theirMedianSeconds, result.minuteGranularity)} · ` +
-              `${chat.theirReplies.toLocaleString()} replies`
-            }
-          />
-          <PeerRows
-            heading="You reply fastest to"
-            rows={result.youReplyFastest}
-            detail={(chat) =>
-              `you reply in ${humanizeSeconds(chat.yourMedianSeconds, result.minuteGranularity)} · ` +
-              `${chat.yourReplies.toLocaleString()} replies`
-            }
-          />
+          <Beat step={3}>
+            <PeerRows
+              heading="Fastest to reply to you"
+              rows={result.theyReplyFastest}
+              detail={(chat) =>
+                `replies in ${humanizeSeconds(chat.theirMedianSeconds, result.minuteGranularity)} · ` +
+                `${chat.theirReplies.toLocaleString()} replies`
+              }
+            />
+          </Beat>
+          <Beat step={4}>
+            <PeerRows
+              heading="You reply fastest to"
+              rows={result.youReplyFastest}
+              detail={(chat) =>
+                `you reply in ${humanizeSeconds(chat.yourMedianSeconds, result.minuteGranularity)} · ` +
+                `${chat.yourReplies.toLocaleString()} replies`
+              }
+            />
+          </Beat>
         </>
       )}
       <p class="muted hint">

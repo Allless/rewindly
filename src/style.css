@@ -134,9 +134,9 @@
 }
 
 /* Poster titles (the Wrapped steal): mono display type set big and loud. */
-:root[data-theme="rewind"] .slide-card h3,
-:root[data-theme="rewind-amber"] .slide-card h3,
-:root[data-theme="rewind-blue"] .slide-card h3 {
+:root[data-theme="rewind"] .story-card h3,
+:root[data-theme="rewind-amber"] .story-card h3,
+:root[data-theme="rewind-blue"] .story-card h3 {
   font-size: 1.6rem;
   line-height: 1.15;
   text-transform: uppercase;
@@ -248,14 +248,131 @@ a:hover {
   color: var(--text-muted);
 }
 
+/* Screen transitions: each top-level view fades in, so the login → loading
+   → dashboard handoffs read as one flow instead of hard cuts. Opacity only,
+   and NO fill-mode — a filling animation would keep this a stacking context
+   forever, pulling the dashboard's fixed atmosphere layer above the app
+   header. */
+.view-enter {
+  animation: view-fade 280ms ease;
+}
+
+@keyframes view-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Loading screen */
+
+.loading-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.load-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 3px solid var(--surface-alt);
+  border-top-color: var(--accent);
+  animation: load-spin 900ms linear infinite;
+}
+
+@keyframes load-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.load-bar {
+  width: min(360px, 80%);
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-alt);
+  overflow: hidden;
+}
+
+.load-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transform-origin: left;
+  transition: transform 400ms ease;
+}
+
+/* Before the chat list arrives there is no denominator — sweep instead. */
+.load-bar-indeterminate {
+  width: 40%;
+  animation: load-sweep 1.3s ease-in-out infinite;
+}
+
+@keyframes load-sweep {
+  from {
+    translate: -100% 0;
+  }
+
+  to {
+    translate: 250% 0;
+  }
+}
+
+.load-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+}
+
+.load-wait {
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-enter {
+    animation: none;
+  }
+
+  .load-bar-indeterminate {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
 /* App shell */
 
 .app {
   width: 100%;
-  max-width: 960px;
+  /* Wide screens get a wider shell; which slides use it is per-archetype. */
+  max-width: clamp(960px, 90vw, 1200px);
   display: flex;
   flex-direction: column;
   gap: 20px;
+  /* Fill the viewport so the footer pins to the bottom on short screens
+     (login, loading) instead of floating mid-page. */
+  flex: 1;
+}
+
+.app > main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Title block left, theme toggle right — the toggle works on every screen,
+   not just the dashboard. */
+.app-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .app-header h1 {
@@ -610,132 +727,470 @@ a:hover {
   flex-wrap: wrap;
 }
 
-/* Slides */
+/* Story column */
 
-/* One horizontally scrolling row of equal-width slides, snapping per slide.
-   Native scrolling supplies the swipe gesture and its physics; padding keeps
-   card shadows from being clipped by the scroll container. */
-.slide-track {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
-  padding: 4px 4px 28px;
-  margin: -4px -4px -28px;
+/* The page's ground: a fixed layer whose color crossfades to the current
+   act's quiet tint. Fixed hues at ~7% into --bg read as atmosphere on every
+   theme without drowning any of them. */
+.story-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--bg);
+  transition: background-color 900ms ease;
+  /* Breathe the first act's tint in from the plain page ground — snapping
+     to it on mount reads as a glitch, not atmosphere. */
+  animation: atmosphere-in 1200ms ease;
 }
 
-.slide-track::-webkit-scrollbar {
-  display: none;
-}
-
-.slide-card {
-  flex: 0 0 100%;
-  min-width: 0;
-  scroll-snap-align: start;
-  /* One slide per gesture, however hard the fling — it's a story deck. */
-  scroll-snap-stop: always;
-  min-height: 340px;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes slide-in {
-    from {
-      opacity: 0;
-      transform: translateX(12px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
-  .slide-card {
-    animation: slide-in 180ms ease-out;
+@keyframes atmosphere-in {
+  from {
+    background-color: var(--bg);
   }
 }
 
-.slide-nav {
+.story-atmosphere[data-act="volume"] {
+  background-color: color-mix(in oklab, #d9982b 7%, var(--bg));
+}
+
+.story-atmosphere[data-act="people"] {
+  background-color: color-mix(in oklab, #3f9d6b 7%, var(--bg));
+}
+
+.story-atmosphere[data-act="dynamics"] {
+  background-color: color-mix(in oklab, #5b7bd5 8%, var(--bg));
+}
+
+.story-atmosphere[data-act="quirks"] {
+  background-color: color-mix(in oklab, #c05fa8 7%, var(--bg));
+}
+
+.story-atmosphere[data-act="finale"] {
+  background-color: color-mix(in oklab, #cfa03f 9%, var(--bg));
+}
+
+/* One vertical scroll — the document is the scroller, so mobile URL-bar
+   collapse and native momentum stay untouched. Deliberately no scroll-snap:
+   async thumbnails would re-snap under the reader. Slides sit borderless on
+   the page; the gap is the only fixed separator, the act tint and the
+   spotlight do the rest. svh keeps heights stable while the mobile URL bar
+   collapses. */
+.story-column {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 48px;
 }
 
-/* Story-style segmented progress: one segment per slide, filled up to the
-   current one. Each segment is a click target for jumping. */
-.story-bar {
+.story-section {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  justify-content: center;
+  scroll-margin-top: 12px;
+  outline: none;
 }
 
-.story-seg {
-  flex: 1;
-  height: 5px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: var(--border);
-  cursor: pointer;
-  transition: background 0.2s ease;
+/* Heights follow the archetype: hero moments get near-viewport staging,
+   ledgers a smaller floor, and panel slides (field/gallery/custom) size to
+   their content — dedicated height was manufactured emptiness there. */
+.arch-hero,
+.arch-split {
+  min-height: 78vh;
+  min-height: 78svh;
 }
 
-.story-seg:hover {
-  background: var(--text-muted);
+.arch-ledger {
+  min-height: 58vh;
+  min-height: 58svh;
 }
 
-.story-seg-filled {
-  background: var(--accent);
+/* Panel and gallery slides size to content, but keep a stage floor so the
+   story's ending doesn't collapse into a plain stack of blocks. */
+.arch-field,
+.arch-gallery,
+.arch-custom {
+  min-height: 52vh;
+  min-height: 52svh;
 }
 
-.story-seg-filled:hover {
-  background: var(--accent-bright);
-}
-
-.slide-count {
-  flex-shrink: 0;
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 20px;
+.story-card {
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
   min-width: 0;
 }
 
-.stat-card-head h3 {
-  margin-bottom: 2px;
+/* Width follows the archetype: heroes and ledgers hold a readable 720px
+   (rows past ~800px stop scanning), splits get chart room, panels track the
+   shell. */
+.arch-split .story-card {
+  max-width: 960px;
 }
 
-.stat-card-head .muted {
+/* Only bare, unbounded grids (heatmap) and utility screens (share) keep a
+   soft panel edge. Galleries' tiles bound themselves — a panel behind them
+   is a card in a void again. */
+.arch-field .story-card,
+.arch-custom .story-card {
+  max-width: none;
+  background: var(--surface-alt);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.arch-gallery .story-card {
+  max-width: none;
+}
+
+/* Two title species only: a whisper of an uppercase kicker over hero
+   numbers, one standard heading everywhere else — a third size in between
+   reads as inconsistency, not intent. */
+.story-head h3 {
+  margin-bottom: 2px;
+  font-size: 1.45rem;
+}
+
+.story-head .muted {
   font-size: 0.85rem;
 }
 
-/* Defensive: a couple of module Cards still self-wrap in .stat-card with their
-   own <h3>. Flatten the nested card and hide the duplicate heading so it reads
-   as one card. (The real fix is to unwrap those Cards.) */
-.stat-card .stat-card {
-  background: none;
-  border: 0;
-  box-shadow: none;
-  padding: 0;
-  gap: 12px;
+.story-section.arch-hero .story-head {
+  text-align: center;
 }
 
-.stat-card .stat-card > h3 {
-  display: none;
+/* Split slides earn the kicker only once they lead with a Hero numeral —
+   a kicker over plain list content reads as an unfinished promise. */
+.story-section.arch-hero .story-head h3,
+.story-section.arch-split.has-hero .story-head h3 {
+  font-family: var(--font);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent);
+}
+
+/* The rail: fixed in the right gutter, one icon per section, gaps between
+   acts as the only dividers. Hidden where it can't fit (narrow screens get
+   the progress hairline + jump chip instead). */
+.story-rail {
+  position: fixed;
+  right: max(10px, calc((100vw - 1200px) / 2 - 52px));
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 5;
+}
+
+.rail-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.rail-item {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: var(--text-muted);
+  opacity: 0.4;
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    background 0.2s ease;
+}
+
+.rail-item:hover {
+  opacity: 1;
+}
+
+.rail-visited {
+  opacity: 0.75;
+}
+
+.rail-active {
+  opacity: 1;
+  color: var(--accent);
+  background: var(--surface-alt);
+}
+
+.rail-break {
+  margin-top: 12px;
+}
+
+/* Slide name, shown as a chip beside the rail on hover/focus. */
+.rail-item .rail-name {
+  position: absolute;
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  color: var(--text);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.rail-item:hover .rail-name,
+.rail-item:focus-visible .rail-name {
+  opacity: 1;
+}
+
+/* Short viewports: the icons don't fit — collapse to dots. */
+@media (max-height: 719px) {
+  .rail-item {
+    width: 20px;
+    height: 20px;
+  }
+
+  .rail-item .rail-icon {
+    display: none;
+  }
+
+  .rail-item::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+}
+
+/* Mobile chrome: a continuous progress hairline on top and a position chip
+   that opens the jump sheet. The rail is a desktop luxury. */
+.story-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 6;
+  background: var(--border);
+}
+
+.story-progress::after {
+  content: "";
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: left;
+  transform: scaleX(var(--progress, 0));
+}
+
+.story-chip {
+  position: fixed;
+  right: 14px;
+  bottom: 18px;
+  z-index: 6;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  cursor: pointer;
+}
+
+@media (min-width: 1024px) {
+  .story-progress,
+  .story-chip {
+    display: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .story-rail {
+    display: none;
+  }
+}
+
+.story-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  background: rgb(0 0 0 / 0.35);
+  display: flex;
+  align-items: flex-end;
+}
+
+.story-sheet {
+  width: 100%;
+  max-height: 70svh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-item[aria-current="true"] {
+  background: var(--surface-alt);
+  color: var(--accent);
 }
 
 .stat-summary {
   font-size: 0.9rem;
+}
+
+/* Beats — staged in-slide reveals (see stats/shared/reveal.tsx). Setup line,
+   then the hero fact, then detail: suspense before payoff. Without the deck
+   (or with reduced motion) beats are plain visible blocks. */
+
+/* A beat whose content rendered nothing (e.g. an empty PeerRows) must not
+   occupy a grid cell or a flex gap. */
+.beat:empty {
+  display: none;
+}
+
+.beat-hook {
+  font-size: 1.02rem;
+  color: var(--text-muted);
+}
+
+.beat-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+.hero-value {
+  font-family: var(--font-display);
+  font-size: clamp(3.2rem, 9vw, 5.5rem);
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Spotlight handoff: the current section's card sits at full presence;
+     the rest recede gently — a soft-focus layer behind the page, not
+     islands. Kept quiet on purpose: the story should read as one journey,
+     with beats revealing per element as they scroll in. */
+  .story-card {
+    opacity: 0.55;
+    filter: blur(1px);
+    transform: translateY(8px) scale(0.985);
+    transition:
+      opacity 550ms ease,
+      filter 550ms ease,
+      transform 550ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  .story-current .story-card {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+
+  .beat {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 480ms ease,
+      transform 480ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition-delay: var(--beat-delay, 0ms);
+  }
+
+  .beat-hero {
+    transform: translateY(14px) scale(0.94);
+  }
+
+  .beat-in {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Settled = the reader tapped or scrolled away mid-reveal: everything
+     snaps to its end state instead of finishing the choreography. */
+  .beat-settled {
+    transition: none;
+  }
+}
+
+/* Wide viewports: paired row-lists sit side by side, hero numerals grow.
+   Everything spans both columns except the paired sections; a nested
+   reaction block keeps its stacked layout inside its half. */
+@media (min-width: 1280px) {
+  /* Cards holding paired lists widen so each column keeps a full ~530px
+     row — pairing inside a 720px card squeezed rows into overlap. */
+  .story-section .story-card:has(.response-times) {
+    max-width: 1160px;
+  }
+
+  .story-card .response-times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 48px;
+  }
+
+  .story-card .response-times > * {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .story-card .response-times > .response-section,
+  .story-card .response-times > .beat.response-section,
+  .story-card .response-times > .beat:has(.response-section) {
+    grid-column: auto;
+  }
+
+  .story-card .response-times .response-times {
+    display: flex;
+  }
+
+  /* A row that still can't fit wraps its detail under the name instead of
+     colliding with the neighbor column. */
+  .story-card .response-times .response-per-chat li {
+    flex-wrap: wrap;
+  }
+
+  .hero-value {
+    font-size: clamp(3.2rem, 9vw, 6rem);
+  }
 }
 
 /* Message volume */
@@ -996,6 +1451,16 @@ a:hover {
   gap: 10px;
 }
 
+/* The stacked rows hug left; flowing them into two columns fills the card
+   instead of leaving its right half dead. */
+@media (min-width: 720px) {
+  .ghosted-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 40px;
+  }
+}
+
 .ghosted-item {
   display: flex;
   align-items: center;
@@ -1199,6 +1664,13 @@ a:hover {
 .slide-icon {
   margin-right: 0.4em;
   font-size: 0.95em;
+}
+
+.slide-icon svg {
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  vertical-align: -0.12em;
 }
 
 .share-presets {

@@ -4,11 +4,14 @@ import { topMediaByType } from "../stats/topMedia";
 import { getMediaPreview } from "../media/downloadMedia";
 import { enqueueFetch } from "../media/fetchQueue";
 import { SlidePriorityContext } from "../media/slidePriority";
+import { beatStyle, useInViewOnce, useReveal } from "../stats/shared/reveal";
 
 import type { MediaResolver, MediaPreview } from "../media/downloadMedia";
 import type { Dataset, MediaType } from "../model/types";
 
 const TOP = 20;
+/** Grid items stagger fast — a wall of thumbnails, not a narrative. */
+const MEDIA_STAGGER_MS = 60;
 
 interface MediaStatProps {
   dataset: Dataset;
@@ -34,6 +37,11 @@ export function MediaStat({
   const [previews, setPreviews] = useState<Record<string, MediaPreview | null>>(
     {},
   );
+  const { live, settled } = useReveal();
+  const animate = live && !settled;
+  // Observe the list itself, not the images — previews load async and the
+  // reveal must not wait on them.
+  const { ref, seen } = useInViewOnce<HTMLUListElement>(animate);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,11 +81,15 @@ export function MediaStat({
   }
 
   return (
-    <ul class="media-grid">
-      {items.map(({ mediaId, count }) => {
+    <ul class="media-grid" ref={ref}>
+      {items.map(({ mediaId, count }, i) => {
         const preview = previews[mediaId];
         return (
-          <li key={mediaId} class="media-item">
+          <li
+            key={mediaId}
+            class={`media-item beat${seen ? " beat-in" : ""}${animate ? "" : " beat-settled"}`}
+            style={beatStyle(i, MEDIA_STAGGER_MS)}
+          >
             {preview ? (
               preview.video ? (
                 <video

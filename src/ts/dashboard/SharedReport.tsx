@@ -1,4 +1,5 @@
 import { activityHeatmap } from "../stats/activityHeatmap";
+import { emojiCulture } from "../stats/emojiCulture";
 import { emojiFrequency } from "../stats/emojiFrequency";
 import { ghostedChats } from "../stats/ghostedChats";
 import { nightOwls } from "../stats/nightOwls";
@@ -12,12 +13,14 @@ import { topDms, topGroups } from "../stats/topContacts";
 import { trophyShelf } from "../stats/trophyShelf";
 import { volumeOverTime } from "../stats/volumeOverTime";
 import { whoTextsFirst } from "../stats/whoTextsFirst";
+import { STAT_REGISTRY } from "../stats/allStats";
 import { AvatarContext, PeerAvatar } from "../media/avatars";
 import { withEmojiPresentation } from "../stats/shared/emoji";
-import { SlideDeck, type Slide } from "./SlideDeck";
+import { StoryColumn, type Slide } from "./StoryColumn";
 import RewindGlyph from "../../rewind.svg?react";
 
 import type { ComponentChildren } from "preact";
+import type { SlideArchetype } from "../stats/registry";
 import type { SharedSummary, SharedTopMedia } from "../share/summary";
 
 function TopMediaRow({
@@ -53,9 +56,9 @@ function TopMediaRow({
 }
 
 /**
- * Read-only view of a shared summary, rendered as the same slide deck as the
- * dashboard: the stat modules' own Cards, fed results reconstructed from the
- * payload, in the same order with the same titles and icons. Only the sections
+ * Read-only view of a shared summary, rendered as the same story column as
+ * the dashboard: the stat modules' own Cards, fed results reconstructed from
+ * the payload, in the same order with the same titles and icons. Only the sections
  * the sharer included appear. No login required.
  */
 export function SharedReport({
@@ -66,10 +69,32 @@ export function SharedReport({
   onMakeYourOwn: () => void;
 }) {
   const slides: Slide[] = [];
+  // Stat modules don't carry story placement; the registry (the curation
+  // source) does, so shares group into the same acts as the dashboard.
+  const placements = new Map(STAT_REGISTRY.map((stat) => [stat.id, stat]));
   const add = (
-    stat: { id: string; title: string; icon: string; description: string },
+    stat: {
+      id: string;
+      title: string;
+      icon: string;
+      description: string;
+      act?: string;
+      archetype?: SlideArchetype;
+    },
     content: ComponentChildren,
-  ) => slides.push({ ...stat, content });
+  ) => {
+    const placed = placements.get(stat.id);
+    slides.push({
+      id: stat.id,
+      title: stat.title,
+      icon: stat.icon,
+      description: stat.description,
+      act: stat.act ?? placed?.act,
+      archetype: stat.archetype ?? placed?.archetype,
+      hero: placed?.hero,
+      content,
+    });
+  };
 
   if (summary.topChatMessages !== undefined) {
     add(
@@ -78,6 +103,8 @@ export function SharedReport({
         title: "The year at a glance",
         icon: "✨",
         description: "The headline numbers from this share.",
+        act: "volume",
+        archetype: "hero",
       },
       <dl class="stat-figures">
         <div>
@@ -117,6 +144,9 @@ export function SharedReport({
   if (summary.groups && summary.groups.chats.length > 0) {
     add(topGroups, <topGroups.Card result={summary.groups} />);
   }
+  if (summary.streaks) {
+    add(streaks, <streaks.Card result={summary.streaks} />);
+  }
   if (summary.response) {
     const response = summary.response;
     if (
@@ -155,42 +185,49 @@ export function SharedReport({
       />,
     );
   }
-  if (summary.styles) {
-    add(textingStyles, <textingStyles.Card result={summary.styles} />);
-  }
   if (summary.quiet && summary.quiet.chats.length > 0) {
     add(ghostedChats, <ghostedChats.Card result={summary.quiet} />);
   }
   if (summary.nights) {
     add(nightOwls, <nightOwls.Card result={summary.nights} />);
   }
-  if (summary.topEmoji) {
-    add(
-      emojiFrequency,
-      <emojiFrequency.Card result={{ topEmoji: summary.topEmoji }} />,
-    );
+  if (summary.styles) {
+    add(textingStyles, <textingStyles.Card result={summary.styles} />);
   }
-  if (
+  // One emoji-culture slide, composed from whichever halves were shared —
+  // the merged Card would render "no emoji" copy for a half that simply
+  // wasn't included.
+  const sharedReactions =
     summary.reactionsGiven !== undefined ||
     summary.reactionsReceived !== undefined
-  ) {
-    add(
-      reactions,
-      <reactions.Card
-        result={{
+      ? {
           given: summary.reactionsGiven ?? [],
           received: summary.reactionsReceived ?? [],
-        }}
-      />,
+        }
+      : null;
+  if (summary.topEmoji || sharedReactions) {
+    add(
+      emojiCulture,
+      <div class="response-times">
+        {summary.topEmoji && (
+          <div class="response-section">
+            <h4>You type with</h4>
+            <emojiFrequency.Card result={{ topEmoji: summary.topEmoji }} />
+          </div>
+        )}
+        {sharedReactions && <reactions.Card result={sharedReactions} />}
+      </div>,
     );
   }
   if (summary.stickerTotal !== undefined || summary.gifTotal !== undefined) {
     add(
       {
-        id: "shared-media",
+        id: "media-rotation",
         title: "Sticker & GIF rotation",
         icon: "🧩",
         description: "The ones they send most.",
+        act: "quirks",
+        archetype: "gallery",
       },
       <div class="response-times">
         <TopMediaRow
@@ -205,9 +242,6 @@ export function SharedReport({
         />
       </div>,
     );
-  }
-  if (summary.streaks) {
-    add(streaks, <streaks.Card result={summary.streaks} />);
   }
   if (summary.hits && summary.hits.length > 0) {
     const hits = summary.hits;
@@ -247,7 +281,7 @@ export function SharedReport({
     <AvatarContext.Provider
       value={{ request: () => undefined, urls: {}, publicPhotos: true }}
     >
-      <SlideDeck slides={slides}>
+      <StoryColumn slides={slides}>
         <div class="dashboard-head">
           <h2 class="shared-title">
             <PeerAvatar
@@ -267,7 +301,7 @@ export function SharedReport({
           {summary.messageCount.toLocaleString()} messages. Only the sections
           they picked are here.
         </p>
-      </SlideDeck>
+      </StoryColumn>
     </AvatarContext.Provider>
   );
 }

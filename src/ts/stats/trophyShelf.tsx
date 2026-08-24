@@ -3,6 +3,7 @@ import type { FunctionComponent } from "preact";
 import { PeerAvatar, PeerName } from "../media/avatars";
 import { defineStat } from "./registry";
 import { humanizeSeconds } from "./shared/formatDuration";
+import { beatStyle, useInViewOnce, useReveal } from "./shared/reveal";
 import { ghostedChats } from "./ghostedChats";
 import { nightOwls } from "./nightOwls";
 import { computeResponseTimes } from "./responseTimesCompute";
@@ -16,6 +17,10 @@ import type { Dataset } from "../model/types";
  * from the computes the other slides already run (no new metrics here).
  * Awards with no qualifying winner are simply absent.
  */
+
+/** Rows stagger faster than narrative beats — ten awards at the narrative
+ * pace would take two seconds to hand out. */
+const TROPHY_STAGGER_MS = 80;
 
 interface Trophy {
   award: string;
@@ -129,8 +134,8 @@ function compute(dataset: Dataset): TrophyShelfResult {
       "Your 3am friend",
       owl,
       owl.nightMessages !== undefined
-        ? `all ${owl.nightMessages} of your messages after 11pm`
-        : `${Math.round(owl.share * 100)}% of your messages after 11pm`,
+        ? `all ${owl.nightMessages} of your messages after midnight`
+        : `${Math.round(owl.share * 100)}% of your messages after midnight`,
     );
   }
 
@@ -151,13 +156,21 @@ function compute(dataset: Dataset): TrophyShelfResult {
 }
 
 const Card: FunctionComponent<{ result: TrophyShelfResult }> = ({ result }) => {
+  const { live, settled } = useReveal();
+  const animate = live && !settled;
+  // The shelf reveals as one cascade — one observer on the list, not 15.
+  const { ref, seen } = useInViewOnce<HTMLUListElement>(animate);
   if (result.trophies.length === 0) {
     return <p class="muted">Not enough chat history to hand out trophies.</p>;
   }
   return (
-    <ul class="trophy-shelf">
-      {result.trophies.map((trophy) => (
-        <li key={trophy.award} class="trophy">
+    <ul class="trophy-shelf" ref={ref}>
+      {result.trophies.map((trophy, i) => (
+        <li
+          key={trophy.award}
+          class={`trophy beat${seen ? " beat-in" : ""}${animate ? "" : " beat-settled"}`}
+          style={beatStyle(i, TROPHY_STAGGER_MS)}
+        >
           <span class="trophy-award">{trophy.award}</span>
           <span class="trophy-winner">
             <PeerAvatar

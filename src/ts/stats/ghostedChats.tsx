@@ -8,6 +8,7 @@
 import { formatRelativeDays } from "./shared/formatDate";
 import { PeerAvatar, PeerName } from "../media/avatars";
 import { defineStat } from "./registry";
+import { beatStyle, useInViewOnce, useReveal } from "./shared/reveal";
 import type { Dataset, MessageDirection } from "../model/types";
 
 const DAY_MS = 86_400_000;
@@ -60,14 +61,22 @@ function compute(dataset: Dataset): GhostedChatsResult {
 }
 
 function Card({ result }: { result: GhostedChatsResult }) {
+  const { live, settled } = useReveal();
+  const animate = live && !settled;
+  // Quiet dialect: rows just ease in one after another, no hero payoff.
+  const { ref, seen } = useInViewOnce<HTMLUListElement>(animate);
   if (result.chats.length === 0) {
     return <p class="muted">No chats yet.</p>;
   }
 
   return (
-    <ul class="ghosted-list">
-      {result.chats.map((chat) => (
-        <li key={chat.chatId} class="ghosted-item">
+    <ul class="ghosted-list" ref={ref}>
+      {result.chats.map((chat, i) => (
+        <li
+          key={chat.chatId}
+          class={`ghosted-item beat${seen ? " beat-in" : ""}${animate ? "" : " beat-settled"}`}
+          style={beatStyle(i, 100)}
+        >
           <PeerAvatar
             peerId={chat.chatId}
             title={chat.title}

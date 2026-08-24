@@ -3,6 +3,7 @@ import type { FunctionComponent } from "preact";
 import { bucketByMonth } from "./shared/time";
 import { formatMonth } from "./shared/formatDate";
 import { defineStat } from "./registry";
+import { Beat, CountUp, Hero } from "./shared/reveal";
 import type { Dataset } from "../model/types";
 
 export interface MonthlyVolume {
@@ -60,34 +61,46 @@ const Card: FunctionComponent<{ result: VolumeOverTimeResult }> = ({
   result,
 }) => {
   const peak = result.monthly.reduce((max, m) => Math.max(max, m.total), 0);
+  const firstMonth = result.monthly[0]?.period;
 
   return (
     <div class="volume">
-      <p class="stat-summary">
-        {result.totalSent.toLocaleString()} sent ·{" "}
-        {result.totalReceived.toLocaleString()} received
-        <span class="muted">
-          {" "}
-          — {result.wordsSent.toLocaleString()} vs{" "}
-          {result.wordsReceived.toLocaleString()} words
-        </span>
-      </p>
-      <ul class="volume-bars">
-        {result.monthly.map((m) => (
-          <li class="volume-row" key={m.period}>
-            <span class="volume-label">{formatMonth(m.period)}</span>
-            <span class="volume-track">
-              <span
-                class="volume-fill"
-                style={{
-                  width: peak === 0 ? "0%" : `${(m.total / peak) * 100}%`,
-                }}
-              />
-            </span>
-            <span class="volume-count muted">{m.total}</span>
-          </li>
-        ))}
-      </ul>
+      <Beat step={0} class="beat-hook">
+        {firstMonth ? `Since ${formatMonth(firstMonth)}…` : "So far…"}
+      </Beat>
+      <Hero
+        value={<CountUp value={result.totalSent + result.totalReceived} />}
+        label="messages exchanged"
+      />
+      <Beat step={2}>
+        <p class="stat-summary">
+          {result.totalSent.toLocaleString()} sent ·{" "}
+          {result.totalReceived.toLocaleString()} received
+          <span class="muted">
+            {" "}
+            — {result.wordsSent.toLocaleString()} vs{" "}
+            {result.wordsReceived.toLocaleString()} words
+          </span>
+        </p>
+      </Beat>
+      <Beat step={3}>
+        <ul class="volume-bars">
+          {result.monthly.map((m) => (
+            <li class="volume-row" key={m.period}>
+              <span class="volume-label">{formatMonth(m.period)}</span>
+              <span class="volume-track">
+                <span
+                  class="volume-fill"
+                  style={{
+                    width: peak === 0 ? "0%" : `${(m.total / peak) * 100}%`,
+                  }}
+                />
+              </span>
+              <span class="volume-count muted">{m.total}</span>
+            </li>
+          ))}
+        </ul>
+      </Beat>
     </div>
   );
 };

@@ -3,6 +3,7 @@ import type { FunctionComponent } from "preact";
 import { REPO_URL } from "../links";
 import { defineStat } from "./registry";
 import { PeerRows } from "./shared/PeerRows";
+import { Beat, CountUp, Hero } from "./shared/reveal";
 import {
   computeResponseTimes,
   type InitiationRank,
@@ -27,44 +28,53 @@ const Card: FunctionComponent<{ result: ResponseTimesResult }> = ({
   return (
     <div class="response-times">
       {result.initiations && (
-        <div class="response-medians">
-          <div class="response-median">
-            <span class="value">
-              {Math.round((result.initiations.yours / total) * 100)}%
-            </span>
-            <span class="label">
+        <Hero
+          value={
+            <CountUp
+              value={(result.initiations.yours / total) * 100}
+              format={(n) => `${Math.round(n)}%`}
+            />
+          }
+          label={
+            <>
               conversations started by you — you{" "}
               {result.initiations.yours.toLocaleString()} · them{" "}
               {result.initiations.theirs.toLocaleString()}, across all your DMs
-            </span>
-          </div>
-        </div>
+            </>
+          }
+        />
       )}
-      <PeerRows
-        heading="You always text first"
-        rows={result.youStartMost}
-        detail={(chat) =>
-          `you start ${chat.yourStarts} of ${conversations(chat)} conversations`
-        }
-      />
-      <PeerRows
-        heading="They text you first"
-        rows={result.theyStartMost}
-        detail={(chat) =>
-          `they start ${chat.theirStarts} of ${conversations(chat)} conversations`
-        }
-      />
-      <p class="muted hint">
-        Counted per conversation session —{" "}
-        <a
-          href={`${REPO_URL}/blob/main/METHODOLOGY.md`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          methodology
-        </a>
-        .
-      </p>
+      <Beat step={2}>
+        <PeerRows
+          heading="You always text first"
+          rows={result.youStartMost}
+          detail={(chat) =>
+            `you start ${chat.yourStarts} of ${conversations(chat)} conversations`
+          }
+        />
+      </Beat>
+      <Beat step={3}>
+        <PeerRows
+          heading="They text you first"
+          rows={result.theyStartMost}
+          detail={(chat) =>
+            `they start ${chat.theirStarts} of ${conversations(chat)} conversations`
+          }
+        />
+      </Beat>
+      <Beat step={4}>
+        <p class="muted hint">
+          Counted per conversation session —{" "}
+          <a
+            href={`${REPO_URL}/blob/main/METHODOLOGY.md`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            methodology
+          </a>
+          .
+        </p>
+      </Beat>
     </div>
   );
 };

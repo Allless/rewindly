@@ -8,6 +8,7 @@ import { dayKey } from "./shared/time";
 import { defineStat } from "./registry";
 import { isNoiseChat } from "./shared/chatFilters";
 import { PeerRows } from "./shared/PeerRows";
+import { Beat, CountUp, Hero } from "./shared/reveal";
 import type { Dataset } from "../model/types";
 
 export interface ChatStreak {
@@ -137,29 +138,38 @@ function compute(dataset: Dataset): StreaksResult {
 function Card({ result }: { result: StreaksResult }) {
   return (
     <div class="response-times">
-      <dl class="stat-figures">
-        <div>
-          <dt>Longest streak</dt>
-          <dd>{result.longestStreakDays} days</dd>
-        </div>
-        <div>
-          <dt>Current streak</dt>
-          <dd>{result.currentStreakDays} days</dd>
-        </div>
-        <div>
-          <dt>Active days</dt>
-          <dd>{result.activeDays}</dd>
-        </div>
-        <div>
-          <dt>Total span</dt>
-          <dd>{result.totalSpanDays} days</dd>
-        </div>
-      </dl>
-      <PeerRows
-        heading="Never a day apart"
-        rows={result.perChat}
-        detail={(chat) => `${chat.days} days in a row`}
+      <Hero
+        value={
+          <CountUp
+            value={result.longestStreakDays}
+            format={(n) => `${Math.round(n).toLocaleString()} days`}
+          />
+        }
+        label="longest streak"
       />
+      <Beat step={2}>
+        <dl class="stat-figures">
+          <div>
+            <dt>Current streak</dt>
+            <dd>{result.currentStreakDays} days</dd>
+          </div>
+          <div>
+            <dt>Active days</dt>
+            <dd>{result.activeDays}</dd>
+          </div>
+          <div>
+            <dt>Total span</dt>
+            <dd>{result.totalSpanDays} days</dd>
+          </div>
+        </dl>
+      </Beat>
+      <Beat step={3}>
+        <PeerRows
+          heading="Never a day apart"
+          rows={result.perChat}
+          detail={(chat) => `${chat.days} days in a row`}
+        />
+      </Beat>
     </div>
   );
 }

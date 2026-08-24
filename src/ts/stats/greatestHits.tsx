@@ -10,6 +10,7 @@ import { formatDay } from "./shared/formatDate";
 import { HitMedia } from "../media/hitPreviews";
 import { defineStat } from "./registry";
 import { withEmojiPresentation } from "./shared/emoji";
+import { beatStyle, useInViewOnce, useReveal } from "./shared/reveal";
 import type { Dataset, MediaType } from "../model/types";
 
 export interface GreatestHit {
@@ -31,6 +32,8 @@ export interface GreatestHitsResult {
 
 const MAX_HITS = 3;
 const SNIPPET_LENGTH = 100;
+/** Hits stagger faster than narrative beats — a gallery, not a story. */
+const HIT_STAGGER_MS = 100;
 
 export const MEDIA_LABELS: Record<MediaType, string> = {
   text: "a message",
@@ -81,14 +84,23 @@ function snippet(hit: GreatestHit): string | null {
 const Card: FunctionComponent<{ result: GreatestHitsResult }> = ({
   result,
 }) => {
+  const { live, settled } = useReveal();
+  const animate = live && !settled;
+  // One observer on the list, not one per hit.
+  const { ref, seen } = useInViewOnce<HTMLOListElement>(animate);
+
   if (result.hits.length === 0) {
     return <p class="muted">No reactions on your messages yet.</p>;
   }
 
   return (
-    <ol class="hits">
-      {result.hits.map((hit) => (
-        <li key={hit.messageId} class="hit">
+    <ol class="hits" ref={ref}>
+      {result.hits.map((hit, i) => (
+        <li
+          key={hit.messageId}
+          class={`hit beat${seen ? " beat-in" : ""}${animate ? "" : " beat-settled"}`}
+          style={beatStyle(i, HIT_STAGGER_MS)}
+        >
           <div class="hit-head">
             <span class="hit-count">{hit.reactionCount}</span>
             <span class="hit-emoji">

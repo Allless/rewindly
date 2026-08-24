@@ -13,54 +13,18 @@ import { getAvatarUrl, getHitPreview } from "../media/downloadMedia";
 import { enqueueFetch } from "../media/fetchQueue";
 import { HitPreviewContext, type HitPreviewSource } from "../media/hitPreviews";
 import { MediaStat } from "./MediaStat";
-import { SlideDeck, type Slide } from "./SlideDeck";
+import { StoryColumn, type Slide } from "./StoryColumn";
 import { SharePanel } from "./SharePanel";
+import { ThemeToggle } from "./ThemeToggle";
 import ShareIcon from "../../icons/share.svg?react";
 import RefreshIcon from "../../icons/refresh.svg?react";
 import LogoutIcon from "../../icons/logout.svg?react";
-import BulbIcon from "../../icons/bulb.svg?react";
-import MoonIcon from "../../icons/moon.svg?react";
-import {
-  browserPrefersDark,
-  isDarkApplied,
-  onSchemeChange,
-  setSchemePref,
-} from "../theme";
 
 import type { ComponentChildren } from "preact";
 import type { MediaResolver, MediaPreview } from "../media/downloadMedia";
 import type { Dataset } from "../model/types";
 
 const DAY_MS = 86_400_000;
-
-/** Day/night toggle; the icon shows the mode a click switches to. */
-function ThemeToggle() {
-  const [dark, setDark] = useState(isDarkApplied);
-  useEffect(() => onSchemeChange(() => setDark(isDarkApplied())), []);
-  const flip = () => {
-    const targetDark = !dark;
-    // Smart reset: landing on the browser's own scheme means "auto" — only
-    // deliberate disagreement with the system is stored.
-    if (targetDark === browserPrefersDark()) {
-      setSchemePref("auto");
-    } else {
-      setSchemePref(targetDark ? "dark" : "light");
-    }
-    setDark(targetDark);
-  };
-  const target = dark ? "light" : "dark";
-  return (
-    <button
-      type="button"
-      class="btn-secondary btn-icon"
-      title={`Switch to ${target} theme`}
-      aria-label={`Switch to ${target} theme`}
-      onClick={flip}
-    >
-      {dark ? <BulbIcon /> : <MoonIcon />}
-    </button>
-  );
-}
 
 /**
  * Resolves profile photos on demand for whichever peers the visible cards ask
@@ -157,9 +121,9 @@ function HitPreviewProvider({
   );
 }
 
-/** Every slide in deck order: registry stats with the sticker/GIF slides
- * spliced into the expression cluster (before `streaks` → `greatest-hits`,
- * the finale), and Share last. `supports` drops slides the dataset's
+/** Every slide in story order: registry stats with the sticker/GIF slides
+ * spliced into the quirks act (before `greatest-hits`, the act's climax),
+ * and Share closing the finale. `supports` drops slides the dataset's
  * platform has no data for. */
 function buildSlides(
   dataset: Dataset,
@@ -173,52 +137,59 @@ function buildSlides(
     title: stat.title,
     icon: stat.icon,
     description: stat.description,
+    act: stat.act,
+    archetype: stat.archetype,
+    hero: stat.hero,
     content: <stat.Render dataset={dataset} />,
   }));
 
   const mediaSlides: Slide[] = [
     {
-      id: "top-stickers",
-      title: "Sticker rotation",
+      id: "media-rotation",
+      title: "Sticker & GIF rotation",
       icon: "🧩",
-      description: "The stickers you send most.",
+      description: "The stickers and GIFs you send most.",
+      act: "quirks",
+      archetype: "gallery",
       content: (
-        <MediaStat
-          dataset={dataset}
-          media={media}
-          mediaType="sticker"
-          emptyLabel="No stickers sent yet."
-        />
-      ),
-    },
-    {
-      id: "top-gifs",
-      title: "GIF rotation",
-      icon: "🎞️",
-      description: "The GIFs you send most.",
-      content: (
-        <MediaStat
-          dataset={dataset}
-          media={media}
-          mediaType="gif"
-          emptyLabel="No GIFs sent yet."
-        />
+        <div class="response-times">
+          <div class="response-section">
+            <h4>Stickers</h4>
+            <MediaStat
+              dataset={dataset}
+              media={media}
+              mediaType="sticker"
+              emptyLabel="No stickers sent yet."
+            />
+          </div>
+          <div class="response-section">
+            <h4>GIFs</h4>
+            <MediaStat
+              dataset={dataset}
+              media={media}
+              mediaType="gif"
+              emptyLabel="No GIFs sent yet."
+            />
+          </div>
+        </div>
       ),
     },
   ];
 
-  const foundStreaks = statSlides.findIndex((s) => s.id === "streaks");
-  const streaksAt = foundStreaks === -1 ? statSlides.length : foundStreaks;
+  const foundHits = statSlides.findIndex((s) => s.id === "greatest-hits");
+  const hitsAt = foundHits === -1 ? statSlides.length : foundHits;
   return [
-    ...statSlides.slice(0, streaksAt),
+    ...statSlides.slice(0, hitsAt),
     ...mediaSlides.filter((s) => supports(s.id)),
-    ...statSlides.slice(streaksAt),
+    ...statSlides.slice(hitsAt),
     {
       id: "share",
       title: "Share your year",
       icon: "🔗",
       description:
         "Pick sections and get an anonymized link — never names or messages.",
+      act: "finale",
+      archetype: "custom",
       content: <SharePanel dataset={dataset} media={media} />,
     },
   ];
@@ -235,8 +206,8 @@ interface DashboardProps {
 }
 
 /**
- * Presents every registered stat as a slide deck — one category per slide,
- * navigable with the buttons, the dots, or the arrow keys. Each stat module
+ * Presents every registered stat as a story column — one section per stat,
+ * scrolled vertically or jumped to from the rail. Each stat module
  * computes and renders itself; the dashboard only frames them. Nothing here
  * talks to Telegram except the on-demand media/avatar downloads.
  */
@@ -257,7 +228,7 @@ export function Dashboard({
   return (
     <AvatarProvider media={media}>
       <HitPreviewProvider media={media}>
-        <SlideDeck slides={slides}>
+        <StoryColumn slides={slides}>
           <div class="dashboard-head">
             <h2>Your Telegram, rewound</h2>
             <div class="head-actions">
@@ -267,13 +238,12 @@ export function Dashboard({
                 class="btn-secondary btn-icon"
                 title="Share your year"
                 aria-label="Share your year"
-                onClick={() => {
-                  const track = document.querySelector(".slide-track");
-                  track?.lastElementChild?.scrollIntoView({
+                onClick={() =>
+                  document.getElementById("share")?.scrollIntoView({
                     behavior: "smooth",
-                    inline: "start",
-                  });
-                }}
+                    block: "start",
+                  })
+                }
               >
                 <ShareIcon />
               </button>
@@ -309,7 +279,7 @@ export function Dashboard({
             )}
             . Nothing was uploaded.
           </p>
-        </SlideDeck>
+        </StoryColumn>
       </HitPreviewProvider>
     </AvatarProvider>
   );
