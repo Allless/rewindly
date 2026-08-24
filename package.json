@@ -2,6 +2,8 @@
   "name": "rewindly",
   "version": "1.0.0",
   "private": true,
+  "repository": "github:Allless/rewindly",
+  "homepage": "https://allless.github.io/rewindly/",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "scripts": {
