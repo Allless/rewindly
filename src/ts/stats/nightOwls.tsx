@@ -3,6 +3,7 @@ import type { FunctionComponent } from "preact";
 import { defineStat } from "./registry";
 import { isNoiseChat } from "./shared/chatFilters";
 import { PeerRows } from "./shared/PeerRows";
+import { Beat, CountUp, Hero } from "./shared/reveal";
 import { hourOfWeek } from "./shared/time";
 
 import type { Dataset } from "../model/types";
@@ -14,10 +15,13 @@ import type { Dataset } from "../model/types";
  * dataset's timezone, direct chats only.
  */
 
-const NIGHT_FROM = 23;
-const NIGHT_TO = 5; // exclusive, wraps midnight
+/* The 4–5am hour deliberately counts for neither list: an all-nighter
+ * spilling past 4 is not a morning person, and discarding the ambiguous
+ * hour beats misassigning it. */
+const NIGHT_FROM = 0;
+const NIGHT_TO = 4; // exclusive
 const MORNING_FROM = 5;
-const MORNING_TO = 9;
+const MORNING_TO = 8;
 /*
  * Ranking by share needs a credible denominator: 100% of 8 messages would
  * otherwise beat 45% of 500 and the list would fill with your quietest
@@ -60,7 +64,7 @@ function compute(dataset: Dataset): NightOwlsResult {
 
   for (const message of dataset.messages) {
     const hour = hourOfWeek(message.timestamp, tz) % 24;
-    const isNight = hour >= NIGHT_FROM || hour < NIGHT_TO;
+    const isNight = hour >= NIGHT_FROM && hour < NIGHT_TO;
     const isMorning = hour >= MORNING_FROM && hour < MORNING_TO;
 
     if (message.direction === "sent") {
@@ -159,36 +163,50 @@ const Card: FunctionComponent<{ result: NightOwlsResult }> = ({ result }) => {
   return (
     <div class="response-times">
       {result.yourNightShare !== null && (
-        <div class="response-medians">
-          <div class="response-median">
-            <span class="value">{percent(result.yourNightShare)}</span>
-            <span class="label">
-              of your messages sent between 11pm and 5am
-            </span>
-          </div>
-        </div>
+        <>
+          <Beat step={0} class="beat-hook">
+            While everyone else sleeps — or is only just waking up…
+          </Beat>
+          <Hero
+            value={
+              <CountUp
+                value={result.yourNightShare * 100}
+                format={(n) => `${Math.round(n)}%`}
+              />
+            }
+            label="of your messages go out between midnight and 4am"
+          />
+        </>
       )}
-      <PeerRows
-        heading="Your 3am club"
-        rows={result.nightOwls}
-        detail={(chat) =>
-          `${percent(chat.share)} of your ${chat.messages.toLocaleString()} messages after 11pm`
-        }
-      />
-      <PeerRows
-        heading="Only ever after dark"
-        rows={result.afterDarkOnly}
-        detail={(chat) =>
-          `${chat.nightMessages ?? 0} of ${chat.messages} messages, all after 11pm`
-        }
-      />
-      <PeerRows
-        heading="Morning people"
-        rows={result.earlyBirds}
-        detail={(chat) =>
-          `${percent(chat.share)} of your ${chat.messages.toLocaleString()} messages before 9am`
-        }
-      />
+      <Beat step={2}>
+        <PeerRows
+          heading="Your 3am club"
+          rows={result.nightOwls}
+          detail={(chat) =>
+            `${percent(chat.share)} of your ${chat.messages.toLocaleString()} messages after midnight`
+          }
+        />
+      </Beat>
+      <Beat step={3}>
+        <PeerRows
+          heading="Only ever after dark"
+          rows={result.afterDarkOnly}
+          detail={(chat) =>
+            `${chat.nightMessages ?? 0} of ${chat.messages} messages, all after midnight`
+          }
+        />
+      </Beat>
+      {result.earlyBirds.length > 0 && (
+        <Beat step={4}>
+          <PeerRows
+            heading="Morning people"
+            rows={result.earlyBirds}
+            detail={(chat) =>
+              `${percent(chat.share)} of your ${chat.messages.toLocaleString()} messages before 8am`
+            }
+          />
+        </Beat>
+      )}
     </div>
   );
 };

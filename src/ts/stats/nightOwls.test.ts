@@ -62,11 +62,12 @@ describe("nightOwls.compute", () => {
     expect(result.earlyBirds.map((r) => r.chatId)).toEqual(["d"]);
   });
 
-  it("counts 23:00 and 04:00 as night, 09:00 as neither", () => {
+  it("counts 00:00–03:59 as night; 23:00 and the 4–5am gap as neither", () => {
     const messages: Message[] = [];
-    for (let i = 0; i < 25; i++) messages.push(at(23, i, i, "c"));
-    for (let i = 0; i < 25; i++) messages.push(at(4, i, i + 50, "c"));
-    for (let i = 0; i < 20; i++) messages.push(at(9, i, i + 100, "c"));
+    for (let i = 0; i < 25; i++) messages.push(at(0, i, i, "c"));
+    for (let i = 0; i < 25; i++) messages.push(at(3, i, i + 50, "c"));
+    for (let i = 0; i < 10; i++) messages.push(at(23, i, i + 100, "c"));
+    for (let i = 0; i < 10; i++) messages.push(at(4, i, i + 150, "c"));
 
     const result = nightOwls.compute(makeDataset(messages));
     expect(result.nightOwls[0].share).toBeCloseTo(50 / 70);
