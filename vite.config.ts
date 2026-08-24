@@ -38,7 +38,7 @@ function dedupeBufferShim() {
 }
 
 export default defineConfig({
-  base: "/retrogram/",
+  base: "/rewindly/",
   define: {
     __COMMIT_HASH__: JSON.stringify(commitHash()),
   },

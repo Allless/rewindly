@@ -51,5 +51,7 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v5
         with:
-          # The Pages queue has been seen stalling past the 10-minute default.
-          timeout: 1800000
+          # The Pages queue has been seen stalling past the 10-minute default,
+          # but deploy-pages caps the timeout at 10 minutes anyway — state the
+          # real value instead of a silently ignored one.
+          timeout: 600000

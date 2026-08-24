@@ -2,18 +2,18 @@
 
 **Your Telegram, in review.**
 
-[![CI](https://github.com/Allless/retrogram/actions/workflows/ci.yml/badge.svg)](https://github.com/Allless/retrogram/actions/workflows/ci.yml)
-[![Deploy](https://github.com/Allless/retrogram/actions/workflows/deploy.yml/badge.svg)](https://github.com/Allless/retrogram/actions/workflows/deploy.yml)
+[![CI](https://github.com/Allless/rewindly/actions/workflows/ci.yml/badge.svg)](https://github.com/Allless/rewindly/actions/workflows/ci.yml)
+[![Deploy](https://github.com/Allless/rewindly/actions/workflows/deploy.yml/badge.svg)](https://github.com/Allless/rewindly/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-b8441f.svg)](LICENSE)
 
 Rewindly is a personal chat-analytics tool that runs entirely in the browser
-and presents your year as a slide deck. **Telegram** is the main flow: it logs
+and presents your year as a scrolling story told in five acts. **Telegram** is the main flow: it logs
 in as a linked device and reads the last 12 months of your history locally.
 **WhatsApp** is in beta: you drop in "Export chat" files and they are parsed
 on-device. There is no server and nothing is uploaded.
 
-**Live**: https://allless.github.io/retrogram/ (will move to
-`retrogram.lessly.me` once the domain is set up)
+**Live**: https://allless.github.io/rewindly/ (will move to
+`rewindly.lessly.me` once the domain is set up)
 
 ## Features
 
@@ -53,11 +53,11 @@ research it follows.
    send the file to this device. Repeat for the chats you care about.
 2. Drop the `.txt` files (or the `.zip` they came in) onto the page and pick
    which participant is you. Parsing happens in the tab; no login exists.
-3. Coverage is whatever you exported, so the deck says "partial history".
+3. Coverage is whatever you exported, so the story says "partial history".
    Exports carry no reactions or media, so those slides are hidden.
 
 Each platform lives behind one interface in `src/ts/platforms/`; everything
-downstream — stats, deck, sharing — is platform-blind.
+downstream — stats, story, sharing — is platform-blind.
 
 ## Privacy
 
@@ -112,7 +112,7 @@ as temporary.
 **Why only 12 months, and why are large chats truncated?**
 Telegram rate-limits history reads. The defaults (12 months, 5,000 messages
 per chat) keep ingestion to a few minutes. Both constants are in
-`src/ts/ingestion/ingest.ts` if you self-host.
+`src/ts/platforms/telegram/ingest.ts` if you self-host.
 
 ## Stack
 

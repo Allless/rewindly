@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://allless.github.io/retrogram/sitemap.xml
+Sitemap: https://allless.github.io/rewindly/sitemap.xml

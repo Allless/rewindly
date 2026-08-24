@@ -1,6 +1,6 @@
 /** Dev-only diagnostics — compiled out of production builds. */
 export function debug(...args: unknown[]): void {
   if (import.meta.env.DEV) {
-    console.debug("[retrogram]", ...args);
+    console.debug("[rewindly]", ...args);
   }
 }

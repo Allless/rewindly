@@ -74,7 +74,7 @@ export async function uploadShare(payload: string): Promise<TelegraphShare> {
     throw new Error("share payload needs more pages than a share may span");
   }
 
-  const account = await call("createAccount", { short_name: "retrogram" });
+  const account = await call("createAccount", { short_name: "rewindly" });
   const accessToken = account.access_token;
   if (typeof accessToken !== "string") {
     throw new Error("telegra.ph returned no access token");
