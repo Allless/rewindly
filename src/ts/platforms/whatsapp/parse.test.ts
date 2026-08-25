@@ -100,4 +100,30 @@ describe("parseWhatsappExport", () => {
     expect(chat.messages).toHaveLength(1);
     expect(chat.messages[0].mediaType).toBe("photo");
   });
+
+  it("strips WhatsApp's own edit marker from the text", () => {
+    const chat = parseWhatsappExport(
+      [
+        "13/02/24, 21:44 - Ada: second thoughts <This message was edited>",
+        "13/02/24, 21:45 - Ada: over",
+        "several lines <This message was edited>",
+      ].join("\n"),
+    );
+    expect(chat.messages[0].text).toBe("second thoughts");
+    expect(chat.messages[1].text).toBe("over\nseveral lines");
+  });
+
+  /* A deleted message still happened — it stays as activity, but its
+     tombstone must never be measured as something the sender wrote. */
+  it("keeps deleted messages without counting their tombstone as text", () => {
+    const chat = parseWhatsappExport(
+      [
+        "13/02/24, 21:44 - Ada: You deleted this message",
+        "13/02/24, 21:45 - Lin Wu: This message was deleted",
+      ].join("\n"),
+    );
+    expect(chat.messages).toHaveLength(2);
+    expect(chat.messages.map((m) => m.mediaType)).toEqual(["other", "other"]);
+    expect(chat.messages.map((m) => m.text)).toEqual(["", ""]);
+  });
 });

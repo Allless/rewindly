@@ -98,12 +98,22 @@ function toTimestamp(raw: RawLine, order: DateOrder): number {
   return Date.UTC(toYear(year), month - 1, day, hour, raw.minute, raw.second);
 }
 
+/** Trailing marker WhatsApp appends to the text of an edited message. */
+const EDITED_TAG_RE = /\s*<This message was edited>$/;
+
+/** Tombstones left behind by a message deleted after sending. */
+const DELETED_RE = /^(?:You deleted this message|This message was deleted)\.?$/;
+
 /** Media placeholders and attachment references, English exports. */
 function detectMedia(text: string): {
   mediaType: MediaType;
   attachedFile?: string;
 } {
   const t = text.trim();
+  // A tombstone is not content: keep the message (it was sent, so it still
+  // counts as activity) but classify it away from `text` so its placeholder
+  // never lands in word, length, or emoji stats.
+  if (DELETED_RE.test(t)) return { mediaType: "other" };
   if (t === "<Media omitted>") return { mediaType: "other" };
   if (t === "image omitted") return { mediaType: "photo" };
   if (t === "video omitted") return { mediaType: "video" };
@@ -189,9 +199,10 @@ export function parseWhatsappExport(text: string): ParsedChat {
     const line = cleanLine(lines[i]);
     if (!raw) {
       if (messages.length > 0 && line.length > 0) {
-        // Continuation of a multiline message.
+        // Continuation of a multiline message; the edit marker rides on the
+        // final line, so it has to be stripped here too.
         const last = messages[messages.length - 1];
-        last.text += `\n${line}`;
+        last.text += `\n${line.replace(EDITED_TAG_RE, "")}`;
       } else if (line.length > 0) {
         unparsedLineCount++;
         if (unparsedSamples.length < MAX_UNPARSED_SAMPLES) {
@@ -207,7 +218,9 @@ export function parseWhatsappExport(text: string): ParsedChat {
       continue;
     }
     const sender = raw.rest.slice(0, sep);
-    const body = raw.rest.slice(sep + 2);
+    // The edit marker is WhatsApp's, not the sender's — strip it before the
+    // text is measured or matched against a media placeholder.
+    const body = raw.rest.slice(sep + 2).replace(EDITED_TAG_RE, "");
     const { mediaType, attachedFile } = detectMedia(body);
 
     if (!participants.includes(sender)) participants.push(sender);

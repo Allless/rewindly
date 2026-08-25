@@ -4,19 +4,36 @@
  * media can't be fetched and a "refresh" means re-uploading.
  */
 import { WhatsappConnect } from "./Connect";
+import { loadDataset } from "../../store/datasetCache";
 
 import type { Dataset } from "../../model/types";
 import type { Platform, PlatformSession } from "../types";
 
+/**
+ * Which cached dataset belongs to WhatsApp. The cache is keyed by self id,
+ * which is only knowable after an upload — so it's recorded here, letting a
+ * reload restore the last rewind instead of demanding the files again.
+ * (Deliberately a `retrogram.` key, like every other storage key.)
+ */
+const SELF_KEY = "retrogram.wa.self";
+
 function createSession(dataset: Dataset): PlatformSession {
   return {
     selfId: () => Promise.resolve(dataset.self.id),
-    ingest: () => Promise.resolve(dataset),
+    ingest: () => {
+      localStorage.setItem(SELF_KEY, dataset.self.id);
+      return Promise.resolve(dataset);
+    },
     onCacheRestored: () => Promise.resolve(),
     media: null,
     canRefresh: false,
-    usesCache: false, // a fresh upload must never be shadowed by old cache
-    disconnect: () => Promise.resolve(),
+    // A fresh upload must never be shadowed by an old cache; restoring one
+    // is `resume()`'s job, and it feeds the dataset in directly.
+    usesCache: false,
+    disconnect: () => {
+      localStorage.removeItem(SELF_KEY);
+      return Promise.resolve();
+    },
   };
 }
 
@@ -41,5 +58,17 @@ export const whatsappPlatform: Platform = {
   id: "whatsapp",
   name: "WhatsApp",
   ConnectScreen,
+  async resume() {
+    const selfId = localStorage.getItem(SELF_KEY);
+    if (!selfId) return null;
+    const cached = await loadDataset(selfId);
+    // A stale marker (cache cleared from the browser) falls back to upload.
+    if (!cached || cached.meta.messageCount === 0) {
+      localStorage.removeItem(SELF_KEY);
+      return null;
+    }
+    return createSession(cached);
+  },
+  canResume: () => localStorage.getItem(SELF_KEY) !== null,
   supports: (slideId) => !UNSUPPORTED.has(slideId),
 };

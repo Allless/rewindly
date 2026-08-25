@@ -20,6 +20,10 @@ export function WhatsappConnect({ onReady }: ConnectProps) {
   const [skipped, setSkipped] = useState<string[]>([]);
   const [selfName, setSelfName] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -35,17 +39,30 @@ export function WhatsappConnect({ onReady }: ConnectProps) {
         })),
       );
       const result = extractUploads(files);
-      const parsed = result.texts
-        .map((t) => ({ fileName: t.name, chat: parseWhatsappExport(t.text) }))
-        .filter((p) => p.chat.messages.length > 0);
+
+      // One chat at a time, yielding between files: a big export blocks the
+      // main thread while it parses, so the count has to repaint before the
+      // next one starts or the whole batch looks like a freeze.
+      const parsed: ParsedExport[] = [];
+      const empty: string[] = [];
+      for (let i = 0; i < result.texts.length; i++) {
+        setProgress({ done: i, total: result.texts.length });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const t = result.texts[i];
+        const chat = parseWhatsappExport(t.text);
+        if (chat.messages.length > 0) parsed.push({ fileName: t.name, chat });
+        else empty.push(`${t.name} — no messages recognized`);
+      }
+
       if (parsed.length === 0 && result.skipped.length === 0) {
         setError("No WhatsApp chat exports found in those files.");
       }
       setExports((prev) => [...prev, ...parsed]);
-      setSkipped((prev) => [...prev, ...result.skipped]);
+      setSkipped((prev) => [...prev, ...result.skipped, ...empty]);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      setProgress(null);
       setBusy(false);
     }
   };
@@ -124,7 +141,9 @@ export function WhatsappConnect({ onReady }: ConnectProps) {
           }}
         />
         {busy
-          ? "Reading…"
+          ? progress
+            ? `Reading chat ${progress.done + 1} of ${progress.total}…`
+            : "Reading…"
           : exports.length === 0
             ? "Drop exports here, or click to choose (.txt or .zip)"
             : "Add more chats"}
@@ -136,6 +155,9 @@ export function WhatsappConnect({ onReady }: ConnectProps) {
             <li key={e.fileName}>
               {e.fileName} · {e.chat.messages.length.toLocaleString()} messages
               {e.chat.dateOrderAmbiguous ? " · ⚠ ambiguous dates" : ""}
+              {e.chat.unparsedLineCount > 0
+                ? ` · ⚠ ${e.chat.unparsedLineCount.toLocaleString()} lines unreadable`
+                : ""}
             </li>
           ))}
         </ul>
