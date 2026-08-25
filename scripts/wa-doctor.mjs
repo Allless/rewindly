@@ -17,8 +17,15 @@ const text = readFileSync(path, "utf8");
 const chat = parseWhatsappExport(text);
 const lines = text.split("\n").filter((l) => l.trim().length > 0).length;
 
-const mask = (name) =>
-  flag === "--names" ? name : `${name[0]}${"*".repeat(name.length - 1)}`;
+/* Positional labels, not stars: a one-character name kept none of its stars
+   and printed verbatim, and the star run leaked the name's length. Distinct
+   people must also stay distinct — masking collided on shared prefixes. */
+const labels = new Map();
+const mask = (name) => {
+  if (flag === "--names") return name;
+  if (!labels.has(name)) labels.set(name, `Participant ${labels.size + 1}`);
+  return labels.get(name);
+};
 const byType = {};
 const bySender = {};
 for (const m of chat.messages) {
