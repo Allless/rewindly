@@ -77,6 +77,15 @@ export function Avatar({
         alt=""
         loading="lazy"
         onError={() => setPublicFailed(true)}
+        // t.me answers "no public photo" with a 1×1 GIF (under a 404 the
+        // browser ignores, because the body decodes), so `error` never fires
+        // and an empty circle renders. Treat a degenerate image as a miss.
+        onLoad={(event) => {
+          const img = event.currentTarget;
+          if (img.naturalWidth <= 1 || img.naturalHeight <= 1) {
+            setPublicFailed(true);
+          }
+        }}
       />
     );
   }
